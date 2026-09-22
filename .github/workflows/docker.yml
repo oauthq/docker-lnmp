@@ -1,0 +1,111 @@
+name: Docker validation
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+  docker-images-php-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['7.4', '8.2', '8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: docker-images/php
+          file: docker-images/php/${{ matrix.php-version }}/Dockerfile
+          push: false
+          load: true
+          tags: oauthq-ci/php:${{ matrix.php-version }}
+          cache-from: type=gha,scope=php-image-${{ matrix.php-version }}
+          cache-to: type=gha,mode=max,scope=php-image-${{ matrix.php-version }}
+      - name: Validate PHP-FPM runtime
+        env:
+          IMAGE: oauthq-ci/php:${{ matrix.php-version }}
+        run: |
+          set -euo pipefail
+
+          docker run --rm "$IMAGE" php-fpm -tt
+          docker run --rm "$IMAGE" php -m > /tmp/php-modules.txt
+          for module in bcmath intl gd gettext mysqli mbstring curl "Zend OPcache" pcntl pdo_mysql redis zip; do
+            grep -Fxi "$module" /tmp/php-modules.txt >/dev/null || {
+              echo "Missing PHP extension: $module" >&2
+              exit 1
+            }
+          done
+
+          container_id=$(docker run -d "$IMAGE")
+          trap 'docker rm -f "$container_id" >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 45); do
+            status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$container_id")
+            case "$status" in
+              healthy)
+                break
+                ;;
+              unhealthy|missing)
+                docker logs "$container_id"
+                exit 1
+                ;;
+            esac
+            if [ "$attempt" -eq 45 ]; then
+              docker logs "$container_id"
+              echo "PHP-FPM healthcheck timed out" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          docker rm -f "$container_id"
+          trap - EXIT
+
+  docker-images-nginx-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: docker-images/nginx
+          file: docker-images/nginx/stable/Dockerfile
+          push: false
+          load: true
+          tags: oauthq-ci/nginx:stable
+          cache-from: type=gha,scope=nginx-image
+          cache-to: type=gha,mode=max,scope=nginx-image
+      - name: Validate nginx runtime
+        run: |
+          set -euo pipefail
+
+          docker run --rm oauthq-ci/nginx:stable nginx -t
+          test "$(docker image inspect --format '{{json .Config.Healthcheck}}' oauthq-ci/nginx:stable)" = "null"
+
+          container_id=$(docker run -d oauthq-ci/nginx:stable)
+          trap 'docker rm -f "$container_id" >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 15); do
+            if docker exec "$container_id" nginx-healthcheck; then
+              break
+            fi
+            if [ "$attempt" -eq 15 ]; then
+              docker logs "$container_id"
+              echo "nginx did not begin serving the inherited default site" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          docker rm -f "$container_id"
+          trap - EXIT
