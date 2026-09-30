@@ -5,14 +5,14 @@
 #
 # Arguments:
 #   TZ                     container timezone (default: Asia/Shanghai)
-#   CONTAINER_PACKAGE_URL  Alpine apk mirror host, e.g. mirrors.ustc.edu.cn
+#   ALPINE_MIRROR  Alpine apk mirror host, e.g. mirrors.ustc.edu.cn
 
 ARG COMPOSER_VERSION=2.8
 FROM composer:${COMPOSER_VERSION} AS composer
 FROM php:8.5-fpm-alpine
 
 ARG TZ=Asia/Shanghai
-ARG CONTAINER_PACKAGE_URL=
+ARG ALPINE_MIRROR=
 
 LABEL org.opencontainers.image.title="DNMP PHP-FPM 8.5" \
       org.opencontainers.image.description="PHP-FPM 8.5 runtime with common extensions and optimized defaults" \
@@ -28,10 +28,10 @@ ENV APP_HOME=/var/www/html \
     COMPOSER_MAX_PARALLEL_HTTP=24 \
     LD_PRELOAD=/usr/lib/preloadable_libiconv.so
 
-# apk mirror switch (changes with CONTAINER_PACKAGE_URL)
+# apk mirror switch (changes with ALPINE_MIRROR)
 RUN set -eux; \
-    if [ -n "${CONTAINER_PACKAGE_URL:-}" ]; then \
-        sed -i "s#dl-cdn.alpinelinux.org#${CONTAINER_PACKAGE_URL:-}#g" /etc/apk/repositories; \
+    if [ -n "${ALPINE_MIRROR:-}" ]; then \
+        sed -i "s#dl-cdn.alpinelinux.org#${ALPINE_MIRROR:-}#g" /etc/apk/repositories; \
     fi
 
 # System packages: the most expensive, most stable layer

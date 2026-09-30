@@ -12,7 +12,7 @@ fi
 : "${COMPOSER_VERSION:=2.8}"
 : "${PHP_EXTENSIONS:=}"
 : "${TZ:=Asia/Shanghai}"
-: "${CONTAINER_PACKAGE_URL:=}"
+: "${ALPINE_MIRROR:=}"
 : "${PLATFORMS:=}"
 
 command="${1:-build}"
@@ -34,8 +34,8 @@ for version in ${PHP_VERSIONS}; do
         --build-arg "TZ=${TZ}" \
         --build-arg "COMPOSER_VERSION=${COMPOSER_VERSION}" \
         --build-arg "PHP_EXTENSIONS=${PHP_EXTENSIONS}"
-    if [ -n "${CONTAINER_PACKAGE_URL}" ]; then
-        set -- "$@" --build-arg "CONTAINER_PACKAGE_URL=${CONTAINER_PACKAGE_URL}"
+    if [ -n "${ALPINE_MIRROR}" ]; then
+        set -- "$@" --build-arg "ALPINE_MIRROR=${ALPINE_MIRROR}"
     fi
 
     if [ -n "${PLATFORMS}" ]; then

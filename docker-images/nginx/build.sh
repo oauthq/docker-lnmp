@@ -11,7 +11,7 @@ fi
 : "${NGINX_VERSIONS:=stable}"
 : "${NGINX_BASE_TAG:=stable-alpine}"
 : "${TZ:=Asia/Shanghai}"
-: "${CONTAINER_PACKAGE_URL:=}"
+: "${ALPINE_MIRROR:=}"
 : "${PLATFORMS:=}"
 
 command="${1:-build}"
@@ -32,8 +32,8 @@ for version in ${NGINX_VERSIONS}; do
     set -- \
         --build-arg "TZ=${TZ}" \
         --build-arg "NGINX_BASE_TAG=${NGINX_BASE_TAG}"
-    if [ -n "${CONTAINER_PACKAGE_URL}" ]; then
-        set -- "$@" --build-arg "CONTAINER_PACKAGE_URL=${CONTAINER_PACKAGE_URL}"
+    if [ -n "${ALPINE_MIRROR}" ]; then
+        set -- "$@" --build-arg "ALPINE_MIRROR=${ALPINE_MIRROR}"
     fi
 
     if [ -n "${PLATFORMS}" ]; then

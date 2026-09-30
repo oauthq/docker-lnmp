@@ -87,7 +87,7 @@ docker-images/
 
 ```sh
 # in docker-images/php
-cp .env.example .env     # adjust IMAGE_NAMESPACE / PHP_VERSIONS / TZ / CONTAINER_PACKAGE_URL
+cp .env.example .env     # adjust IMAGE_NAMESPACE / PHP_VERSIONS / TZ / ALPINE_MIRROR
 chmod +x build.sh
 
 ./build.sh build         # docker build every version listed in PHP_VERSIONS
@@ -102,7 +102,7 @@ Configurable via `.env`:
 | `PHP_VERSIONS` | `8.5` | space-separated versions to build/push |
 | `COMPOSER_VERSION` | `2.8` | composer builder-stage image tag (minor pin) |
 | `TZ` | `Asia/Shanghai` | container timezone |
-| `CONTAINER_PACKAGE_URL` | *(empty)* | Alpine apk mirror host, e.g. `mirrors.ustc.edu.cn` |
+| `ALPINE_MIRROR` | *(empty)* | Alpine apk mirror host, e.g. `mirrors.ustc.edu.cn` |
 | `PLATFORMS` | *(empty)* | multi-arch platforms for buildx, e.g. `linux/amd64,linux/arm64` |
 
 Or build a single version manually:

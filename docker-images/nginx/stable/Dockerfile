@@ -6,13 +6,13 @@
 # Arguments:
 #   NGINX_BASE_TAG         base image tag, nginx:${NGINX_BASE_TAG} (default: stable-alpine)
 #   TZ                     container timezone (default: Asia/Shanghai)
-#   CONTAINER_PACKAGE_URL  Alpine apk mirror host, e.g. mirrors.ustc.edu.cn
+#   ALPINE_MIRROR  Alpine apk mirror host, e.g. mirrors.ustc.edu.cn
 
 ARG NGINX_BASE_TAG=stable-alpine
 FROM nginx:${NGINX_BASE_TAG}
 
 ARG TZ=Asia/Shanghai
-ARG CONTAINER_PACKAGE_URL=
+ARG ALPINE_MIRROR=
 
 LABEL org.opencontainers.image.title="oauthq Nginx" \
       org.opencontainers.image.description="Nginx runtime with optimized defaults" \
@@ -24,10 +24,10 @@ LABEL org.opencontainers.image.title="oauthq Nginx" \
 ENV APP_HOME=/var/www/html \
     TZ=${TZ}
 
-# apk mirror switch (changes with CONTAINER_PACKAGE_URL)
+# apk mirror switch (changes with ALPINE_MIRROR)
 RUN set -eux; \
-    if [ -n "${CONTAINER_PACKAGE_URL:-}" ]; then \
-        sed -i "s#dl-cdn.alpinelinux.org#${CONTAINER_PACKAGE_URL:-}#g" /etc/apk/repositories; \
+    if [ -n "${ALPINE_MIRROR:-}" ]; then \
+        sed -i "s#dl-cdn.alpinelinux.org#${ALPINE_MIRROR:-}#g" /etc/apk/repositories; \
     fi
 
 # System packages: the most expensive, most stable layer
