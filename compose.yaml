@@ -4,7 +4,10 @@ services:
   php:
     build:
       context: ./docker-images/php
-      dockerfile: ${PHP_VERSION:-8.5}/Dockerfile
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.5}
+        PHP_BASE_TAG: ${PHP_BASE_TAG:-${PHP_VERSION:-8.5}-fpm-alpine}
     image: oauthq-local/php:${PHP_VERSION:-8.5}
     environment:
       APP_ENV: local

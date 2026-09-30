@@ -14,36 +14,32 @@ docker-images/
 │   ├── build.sh
 │   └── healthcheck.sh
 ├── php/
+│   ├── Dockerfile                      # shared build steps for every PHP version
 │   ├── 7.4/
-│   │   ├── Dockerfile
 │   │   ├── conf.d/
 │   │   │   ├── 20-opcache.ini
 │   │   │   └── 99-company.ini
 │   │   └── extensions/
 │   │       └── install.sh              # version-specific extension installer
 │   ├── 8.2/
-│   │   ├── Dockerfile
 │   │   ├── conf.d/
 │   │   │   ├── 20-opcache.ini
 │   │   │   └── 99-company.ini
 │   │   └── extensions/
 │   │       └── install.sh              # version-specific extension installer
 │   ├── 8.3/
-│   │   ├── Dockerfile
 │   │   ├── conf.d/
 │   │   │   ├── 20-opcache.ini
 │   │   │   └── 99-company.ini
 │   │   └── extensions/
 │   │       └── install.sh              # version-specific extension installer
 │   ├── 8.4/
-│   │   ├── Dockerfile
 │   │   ├── conf.d/
 │   │   │   ├── 20-opcache.ini
 │   │   │   └── 99-company.ini
 │   │   └── extensions/
 │   │       └── install.sh              # version-specific extension installer
 │   └── 8.5/
-│       ├── Dockerfile
 │       ├── conf.d/
 │       │   ├── 20-opcache.ini
 │       │   └── 99-company.ini
@@ -60,8 +56,11 @@ docker-images/
 
 ## Design notes
 
-- **One build directory per PHP version** — each `Dockerfile` pins its own base image, so
-  versions evolve independently (different extensions, different build flags).
+- **One shared PHP Dockerfile** — `PHP_VERSION` selects the version's configuration and
+  extension directories; `PHP_BASE_TAG` selects the official base image. The build script
+  and CI pin PHP 7.4 to `7.4.33-fpm-alpine`; PHP 8.x uses `<version>-fpm-alpine`.
+- **Version-specific assets stay separate** — each version owns `conf.d/`, `extensions/`
+  and local `.tgz` packages. PHP 8.5 keeps its separate OPcache installer handling.
 - **Build context is `php/`** — shared assets (`install-php-extensions`, `php-fpm.conf`,
   `healthcheck.sh`) live outside the version directories and are copied from the context root.
 - **Config is additive** — every version dir ships only `conf.d/` fragments, merged on top of
@@ -108,8 +107,26 @@ Configurable via `.env`:
 Or build a single version manually:
 
 ```sh
-docker build -f 8.5/Dockerfile --build-arg TZ=UTC -t yourhub/php:8.5 .
+docker build -f Dockerfile --build-arg PHP_VERSION=8.5 --build-arg TZ=UTC -t yourhub/php:8.5 .
+docker build -f Dockerfile --build-arg PHP_VERSION=7.4 \
+    --build-arg PHP_BASE_TAG=7.4.33-fpm-alpine -t yourhub/php:7.4 .
 ```
+
+Arguments for the shared Dockerfile:
+
+| Argument | Default | Purpose |
+| --- | --- | --- |
+| `PHP_VERSION` | `8.5` | selects `<version>/conf.d/`, `<version>/extensions/` and image version metadata |
+| `PHP_BASE_TAG` | `${PHP_VERSION}-fpm-alpine` | official `php:` base tag; must match `PHP_VERSION`'s major/minor version |
+
+`build.sh` supplies both arguments automatically. Manual builds and Compose can override
+`PHP_BASE_TAG` to pin a patch or Alpine variant. For PHP 7.4, explicitly use
+`7.4.33-fpm-alpine` to retain the legacy patch pin. The previous `<version>/Dockerfile`
+paths have been removed; custom build commands must use `Dockerfile` and pass `PHP_VERSION`.
+Build arguments do not reconfigure an image after it is pulled.
+Inside the build stage, the selected version is stored as `PHP_TARGET_VERSION` to avoid
+colliding with the official image's full-version `PHP_VERSION` environment variable.
+Callers continue to pass `PHP_VERSION`; no new argument is needed.
 
 ### Multi-architecture (buildx)
 
@@ -118,7 +135,7 @@ To publish multi-arch images to a registry (e.g. Docker Hub), use buildx with
 
 ```sh
 docker buildx build --platform linux/amd64,linux/arm64 \
-    -f 8.5/Dockerfile -t yourhub/php:8.5 --push .
+    -f Dockerfile --build-arg PHP_VERSION=8.5 -t yourhub/php:8.5 --push .
 ```
 
 When `PLATFORMS` contains one platform, `./build.sh build` uses `buildx --load` so the
@@ -130,10 +147,12 @@ the classic local image store, so `./build.sh build` fails with a clear message 
 
 Extensions are owned **per PHP version**:
 
+- The shared Dockerfile copies only the selected version's extension directory.
 - `php/<version>/extensions/install.sh` is that version's own install script.
   The extension catalog matches the reference build script:
   - **dep-free built-ins** via `docker-php-ext-install`: `bcmath calendar exif mysqli
     opcache pcntl pdo_mysql shmop sockets sysvmsg sysvsem sysvshm`
+    (PHP 8.5 already includes OPcache, so its script does not rebuild it).
   - **everything else** (gd, intl, zip, pgsql, redis, amqp, memcached, swoole, xdebug,
     imagick, mongodb, pspell, ...) via the shared `install-php-extensions` tool, which resolves
     build/runtime deps, version compatibility and cleans up volatile build deps itself.
@@ -249,9 +268,17 @@ healthcheck against their own endpoint.
 
 ## Adding a new PHP version
 
+From `docker-images/`, create only the version's assets; no new Dockerfile is needed:
+
 ```sh
 mkdir -p php/8.6/conf.d php/8.6/extensions
-cp php/8.5/Dockerfile php/8.6/Dockerfile   # then: base image 8.6, label, conf.d path
 cp php/8.5/conf.d/* php/8.6/conf.d/
 cp php/8.5/extensions/install.sh php/8.6/extensions/
 ```
+
+Review the new version's configuration and extension compatibility, add it to
+`PHP_VERSIONS` and the CI matrix, and update the supported-version lists in the root
+READMEs. The build script defaults to `<version>-fpm-alpine`; add a mapping in `build.sh`
+and a matching CI matrix entry when a patch pin is required.
+
+See [the change history](../CHANGELOG.md) for migration notes.

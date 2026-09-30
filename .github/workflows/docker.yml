@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate PHP build script arguments
+        run: sh tests/php-build.sh
       - name: Validate Compose configuration
         run: docker compose config --quiet
 
@@ -21,13 +23,19 @@ jobs:
       fail-fast: false
       matrix:
         php-version: ['7.4', '8.2', '8.3', '8.4', '8.5']
+        include:
+          - php-version: '7.4'
+            php-base-tag: '7.4.33-fpm-alpine'
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
           context: docker-images/php
-          file: docker-images/php/${{ matrix.php-version }}/Dockerfile
+          file: docker-images/php/Dockerfile
+          build-args: |
+            PHP_VERSION=${{ matrix.php-version }}
+            PHP_BASE_TAG=${{ matrix.php-base-tag || format('{0}-fpm-alpine', matrix.php-version) }}
           push: false
           load: true
           tags: oauthq-ci/php:${{ matrix.php-version }}

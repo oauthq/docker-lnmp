@@ -21,6 +21,7 @@ PHP 扩展，但不包含应用源码。
 - 基于官方 Alpine PHP 和 Nginx 镜像。
 - PHP-FPM 使用 UID/GID 为 `1000` 的 `www-data` 用户运行。
 - 提供常用 PHP 扩展和独立的版本配置。
+- PHP 各版本共用一个 Dockerfile，配置和扩展仍按版本目录维护。
 - 每个 PHP 镜像都包含 Composer。
 - PHP-FPM 错误和 worker 输出写入容器 stderr。
 - PHP 使用 Alpine 维护的系统 CA 证书。
@@ -74,6 +75,13 @@ docker compose ps
 HTTP_PORT=8083 PHP_VERSION=8.3 docker compose up --build -d
 ```
 
+Compose 使用 `docker-images/php/Dockerfile`。`PHP_VERSION` 选择版本目录，
+`PHP_BASE_TAG` 可指定同一 PHP 版本的补丁或 Alpine 镜像标签。PHP 7.4 固定版本的示例：
+
+```sh
+PHP_VERSION=7.4 PHP_BASE_TAG=7.4.33-fpm-alpine docker compose up --build -d
+```
+
 停止并删除本地容器和网络：
 
 ```sh
@@ -103,6 +111,23 @@ PLATFORMS=""
 ```sh
 ./build.sh build
 ```
+
+所有 PHP 版本统一使用 `docker-images/php/Dockerfile`。脚本为每个版本传入 `PHP_VERSION`
+和 `PHP_BASE_TAG`：PHP 7.4 使用 `7.4.33-fpm-alpine`，PHP 8.x 使用
+`<version>-fpm-alpine`。各版本的 `conf.d/`、`extensions/`、本地扩展包以及 PHP 8.5
+的 OPcache 处理仍独立保留。
+
+在 `docker-images/php` 目录手动构建单个版本：
+
+```sh
+docker build --build-arg PHP_VERSION=8.3 -t oauthq/php:8.3 .
+```
+
+手动构建 PHP 7.4 时，还需传入 `--build-arg PHP_BASE_TAG=7.4.33-fpm-alpine` 保持补丁版本固定。
+基础镜像的 PHP 主次版本必须与所选目录一致。这些是构建参数，拉取镜像后设置同名环境变量
+不会改变 PHP 版本或已安装的扩展。
+Dockerfile 在 `FROM` 后使用内部参数 `PHP_TARGET_VERSION`，避免官方基础镜像的 `PHP_VERSION`
+环境变量覆盖所选目录。外部构建命令仍传入 `PHP_VERSION`，无需增加参数。
 
 ### Nginx
 
@@ -197,6 +222,7 @@ Nginx 镜像不声明 Docker `HEALTHCHECK`，因为最终协议、端口、路�
 ```text
 docker-images/
 ├── php/
+│   ├── Dockerfile
 │   ├── 7.4/
 │   ├── 8.2/
 │   ├── 8.3/
@@ -213,6 +239,10 @@ docker-images/
 │   └── healthcheck.sh
 └── README.md
 ```
+
+## 更新记录
+
+构建合并和迁移说明见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可证
 
